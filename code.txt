@@ -1,0 +1,257 @@
+class FileSystem {
+  constructor() {
+    this.root = new Directory('/');
+    this.currDirectory = this.root;
+  }
+
+  mkdir(name) {
+    const newDirectory = new Directory(name, this.currDirectory);
+    this.currDirectory.addChild(newDirectory);
+  }
+
+  cd(path) {
+    if (path === '/') {
+      this.currDirectory = this.root;
+    } else if (path === '..') {
+      this.currDirectory = this.currDirectory.parent || this.currDirectory;
+    } else {
+      const targetDirectory = this.resolvePath(path);
+      if (targetDirectory && targetDirectory.isDirectory()) {
+        this.currDirectory = targetDirectory;
+      } else {
+        console.log(Error: ${path} is not a directory.);
+      }
+    }
+  }
+
+  ls(path = '.') {
+    const targetDirectory = this.resolvePath(path);
+    if (targetDirectory && targetDirectory.isDirectory()) {
+      targetDirectory.listChildren();
+    } else {
+      console.log(Error: ${path} is not a directory.);
+    }
+  }
+
+  grep(pattern, filePath) {
+    const file = this.resolvePath(filePath);
+    if (file && file.isFile()) {
+      file.search(pattern);
+    } else {
+      console.log(Error: ${filePath} is not a file.);
+    }
+  }
+
+  cat(filePath) {
+    const file = this.resolvePath(filePath);
+    if (file && file.isFile()) {
+      file.displayContents();
+    } else {
+      console.log(Error: ${filePath} is not a file.);
+    }
+  }
+
+  touch(fileName) {
+    const newFile = new File(fileName, this.currDirectory);
+    this.currDirectory.addChild(newFile);
+  }
+
+  echo(content, filePath) {
+    const file = this.resolvePath(filePath);
+    if (file && file.isFile()) {
+      file.writeContent(content);
+    } else {
+      console.log(Error: ${filePath} is not a file.);
+    }
+  }
+
+  mv(sourcePath, destinationPath) {
+    const source = this.resolvePath(sourcePath);
+    const destination = this.resolvePath(destinationPath);
+
+    if (source && destination && source.isValidMove(destination)) {
+      this.currDirectory.removeChild(source);
+      destination.addChild(source);
+    } else {
+      console.log('Error: Invalid move operation.');
+    }
+  }
+
+  cp(sourcePath, destinationPath) {
+    const source = this.resolvePath(sourcePath);
+    const destination = this.resolvePath(destinationPath);
+
+    if (source && destination && source.isValidCopy(destination)) {
+      const copy = source.copy();
+      destination.addChild(copy);
+    } else {
+      console.log('Error: Invalid copy operation.');
+    }
+  }
+
+  rm(path) {
+    const target = this.resolvePath(path);
+
+    if (target) {
+      this.currDirectory.removeChild(target);
+    } else {
+      console.log(Error: ${path} not found.);
+    }
+  }
+
+  resolvePath(path) {
+    if (path === '~') {
+      return this.root;
+    } else if (path === '/') {
+      return this.root;
+    } else if (path.startsWith('/')) {
+      return this.root.findChildByPath(path);
+    } else {
+      return this.currDirectory.findChildByPath(path);
+    }
+  }
+}
+
+class File {
+  constructor(name, parent) {
+    this.name = name;
+    this.parent = parent;
+    this.content = '';
+  }
+
+  isFile() {
+    return true;
+  }
+
+  displayContents() {
+    console.log(this.content);
+  }
+
+  writeContent(content) {
+    this.content = content;
+  }
+
+  copy() {
+    const copy = new File(this.name, this.parent);
+    copy.content = this.content;
+    return copy;
+  }
+
+  search(pattern) {
+    const regex = new RegExp(pattern, 'g');
+    const matches = this.content.match(regex);
+    if (matches) {
+      console.log(matches.join('\n'));
+    } else {
+      console.log('Pattern not found.');
+    }
+  }
+}
+
+class Directory {
+  constructor(name, parent = null) {
+    this.name = name;
+    this.parent = parent;
+    this.children = [];
+  }
+
+  isDirectory() {
+    return true;
+  }
+
+  addChild(child) {
+    this.children.push(child);
+  }
+
+  removeChild(child) {
+    const index = this.children.indexOf(child);
+    if (index !== -1) {
+      this.children.splice(index, 1);
+    }
+  }
+
+  listChildren() {
+    this.children.forEach((child) => {
+      console.log(child.name);
+    });
+  }
+
+  findChildByPath(path) {
+    const parts = path.split('/');
+    let currentDir = this;
+
+    for (const part of parts) {
+      if (part === '..') {
+        currentDir = currentDir.parent || currentDir;
+      } else {
+        const child = currentDir.children.find((c) => c.name === part);
+        if (child && child.isDirectory()) {
+          currentDir = child;
+        } else {
+          return null;
+        }
+      }
+    }
+
+    return currentDir;
+  }
+
+  isValidMove(destination) {
+    return this !== destination && !this.contains(destination);
+  }
+
+  isValidCopy(destination) {
+    return !this.contains(destination);
+  }
+
+  contains(directory) {
+    return this.children.includes(directory);
+  }
+}
+
+// Example usage
+const fileSystem = new FileSystem();
+
+while (true) {
+  const input = prompt('Enter command: ');
+  const args = input.split(' ');
+  const command = args[0];
+
+  switch (command) {
+    case 'mkdir':
+      fileSystem.mkdir(args[1]);
+      break;
+    case 'cd':
+      fileSystem.cd(args[1]);
+      break;
+    case 'ls':
+      fileSystem.ls(args[1]);
+      break;
+    case 'grep':
+      fileSystem.grep(args[1], args[2]);
+      break;
+    case 'cat':
+      fileSystem.cat(args[1]);
+      break;
+    case 'touch':
+      fileSystem.touch(args[1]);
+      break;
+    case 'echo':
+      fileSystem.echo(args.slice(2).join(' '), args[1]);
+      break;
+    case 'mv':
+      fileSystem.mv(args[1], args[2]);
+      break;
+    case 'cp':
+      fileSystem.cp(args[1], args[2]);
+      break;
+    case 'rm':
+      fileSystem.rm(args[1]);
+      break;
+    case 'exit':
+      process.exit();
+      break;
+    default:
+      console.log('Unknown command.');
+  }
+}
